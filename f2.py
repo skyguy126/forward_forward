@@ -3,6 +3,9 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Lambda
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 
+# Define the device to use (CUDA if available, otherwise CPU)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def gen_mnist_loaders(train_batch_size=50000, test_batch_size=10000):
 
     transform = Compose([
@@ -58,8 +61,11 @@ class Network(torch.nn.Module):
 
         # Linear classifier (dense output with 10 nodes)
         self.classifier = torch.nn.Linear(dims[-1], 10)
+        self.classifier.to(device) # cuda
 
     def predict(self, x):
+
+        x = x.to(device) # cuda
 
         # run goodness for each layer in net
         h = overlay_y_on_x(x, label)
@@ -71,6 +77,11 @@ class Network(torch.nn.Module):
         return torch.argmax(z, dim=1)
 
     def train(self, x_pos, x_neg, y):
+
+        # cuda
+        x_pos = x_pos.to(device)
+        x_neg = x_neg.to(device)
+        y = y.to(device)
 
         h_pos, h_neg = x_pos, x_neg
         for i, layer in enumerate(self.layers):
@@ -104,7 +115,7 @@ class Layer(torch.nn.Linear):
 
         # the bias term allows the neuron to learn to activate even
         # when the weighted input is very small. Prevents "dead" neurons.
-        super().__init__(in_features, out_features, bias=True, device=None, dtype=None)
+        super().__init__(in_features, out_features, bias=True, device=device, dtype=None) # cuda
 
         self.relu = torch.nn.ReLU()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.03)
