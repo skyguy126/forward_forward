@@ -89,7 +89,7 @@ class Network(torch.nn.Module):
             h_pos, h_neg = layer.train(h_pos, h_neg)
 
         # train the linear classifier (on positive samples only)
-        self.train_linear_classifier(x_pos.detach(), y)
+        self.train_linear_classifier(h_pos.detach(), y)
 
     def train_linear_classifier(self, h, labels):
         
