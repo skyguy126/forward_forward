@@ -56,73 +56,43 @@ class Network(torch.nn.Module):
         for d in range(len(dims) - 1):
             self.layers += [Layer(dims[d], dims[d+1])]
 
-    # the way the network is defined we technically
-    # don't have the last layer of neurons that output
-    # the prediction itself. I think that the predict
-    # function is trying to emulate the last layer of 
-    # 10 fully connected neurons.
+        # Linear classifier (dense output with 10 nodes)
+        self.classifier = torch.nn.Linear(dims[-1], 10)
 
     def predict(self, x):
 
-        # this is the sum of activations for each 0-9 label
-        goodness_per_label = []
+        # run goodness for each layer in net
+        h = overlay_y_on_x(x, label)
+        for layer in self.layers:
+            h = layer(h)
 
-        # for each example, randomly apply a label then feed 
-        # it through the nerual net. the label with the highest
-        # goodness value is the predicted label.
+        # feed into linear classifier
+        z = self.classifier(h)
+        return torch.argmax(z, dim=1)
 
-        for label in range(10):
-
-            h = overlay_y_on_x(x, label)
-            goodness_per_layer = []
-
-            for layer in self.layers:
-
-                # iterate through each layer and accumulate the goodness
-                # value for each layer. the goodness value here is just
-                # calling the forward pass, then normalizing the 
-                # activiations.
-
-                # h is a vector of the activations from the current layer.
-                # this is then fed into the next layer until we reach the
-                # very end of the network. When you call an object directly
-                # python invokes the object's __call__ method, which
-                # implicitly calls the forward(...) function. The forward()
-                # function takes the input dimension, performs the 
-                # computation and returns a vector with length equal
-                # to the specified output dimension.
-
-                # initially h has the shape (batch_size, 784) which
-                # gets reduced to (batch_size, 500) in the next iter.
-                h = layer(h)
-
-                # compute the goodness vector for the given example.
-                # this will have shape of (batch_size,)
-                current_layer_goodness_vector = h.pow(2).mean(1)
-
-                # accumulate goodness vectors for each layer given the
-                # current label. this will contain as many vectors
-                # as layers, and each vector has shape (batch_size,)
-                # the array itself will be of shape (layer_count, batch_size)
-                # by the end of the loop
-                goodness_per_layer += [current_layer_goodness_vector]
-            
-            # for this hardcoded example these tensors are all size
-            # the shape will be (batch_size, 1) in this example.
-            goodness_per_label += [sum(goodness_per_layer).unsqueeze(1)]
-
-        # figure out which label was the "best fit" for
-        # the provided example. in this example the 
-        # TODO: this is really confusing
-        goodness_per_label = torch.cat(goodness_per_label, 1)
-        return goodness_per_label.argmax(1)
-
-    def train(self, x_pos, x_neg):
+    def train(self, x_pos, x_neg, y):
 
         h_pos, h_neg = x_pos, x_neg
         for i, layer in enumerate(self.layers):
             print('training layer', i, '...')
             h_pos, h_neg = layer.train(h_pos, h_neg)
+
+        # train the linear classifier (on positive samples only)
+        self.train_linear_classifier(self, x_pos.detach(), y)
+
+    def train_linear_classifier(self, h, labels):
+        
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.01)
+        num_epochs = 1000 # tune this hyperparameter
+
+        for epoch in range(num_epochs):
+            
+            optimizer.zero_grad()
+            z = self.classifier(h)
+            loss = criterion(z, labels)
+            loss.backward()
+            optimizer.step()
 
 # torch.nn.Linear is used to implement a dense
 # (fully connected) layer. It applies a linear
@@ -238,7 +208,7 @@ if __name__ == "__main__":
     rnd = torch.randperm(x.size(0))
     x_neg = overlay_y_on_x(x, y[rnd])
 
-    network.train(x_pos, x_neg)
+    network.train(x_pos, x_neg, y)
     print('train error:', 1.0 - network.predict(x).eq(y).float().mean().item())
 
     # load test dataset
