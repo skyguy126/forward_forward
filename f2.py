@@ -68,7 +68,7 @@ class Network(torch.nn.Module):
         x = x.to(device) # cuda
 
         # run goodness for each layer in net
-        h = overlay_y_on_x(x, label)
+        h = x
         for layer in self.layers:
             h = layer(h)
 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     torch.manual_seed(1234)
     train_loader, test_loader = gen_mnist_loaders()
 
-    network = Network([784, 500, 500])
+    network = Network([784, 500, 500, 500])
 
     # load the positive examples
     x, y = next(iter(train_loader))
@@ -220,8 +220,8 @@ if __name__ == "__main__":
     x_neg = overlay_y_on_x(x, y[rnd])
 
     network.train(x_pos, x_neg, y)
-    print('train error:', 1.0 - network.predict(x).eq(y).float().mean().item())
+    print('train error:', 1.0 - network.predict(x).eq(y.to(device)).float().mean().item())
 
     # load test dataset
     x_te, y_te = next(iter(test_loader))
-    print('test error:', 1.0 - network.predict(x_te).eq(y_te).float().mean().item())
+    print('test error:', 1.0 - network.predict(x_te).eq(y_te.to(device)).float().mean().item())
